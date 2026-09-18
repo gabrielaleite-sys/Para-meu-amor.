@@ -1,0 +1,1004 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Nosso Pequeno Paraíso 💗</title>
+
+<style>
+* {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    font-family: Arial, sans-serif;
+    background: #dff6ff;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+#game {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    max-width: 600px;
+    overflow: hidden;
+    background: linear-gradient(#b9eaff, #fff5fb);
+}
+
+canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.screen {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 25px;
+    background: linear-gradient(#d8f5ff, #fff0f8);
+}
+
+.screen h1 {
+    color: #743d64;
+    font-size: 30px;
+    margin: 0 0 12px;
+}
+
+.screen p {
+    color: #684d61;
+    font-size: 17px;
+    line-height: 1.5;
+    max-width: 390px;
+}
+
+button {
+    border: none;
+    border-radius: 25px;
+    padding: 13px 25px;
+    margin: 8px;
+    font-size: 17px;
+    font-weight: bold;
+    color: white;
+    background: #d979aa;
+    box-shadow: 0 5px 12px rgba(80,40,70,.18);
+    cursor: pointer;
+}
+
+button:active {
+    transform: scale(.95);
+}
+
+#controls {
+    position: absolute;
+    z-index: 5;
+    bottom: 20px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    padding: 0 20px;
+    pointer-events: none;
+}
+
+.control {
+    pointer-events: auto;
+    width: 75px;
+    height: 65px;
+    border-radius: 22px;
+    font-size: 30px;
+    padding: 0;
+    opacity: .85;
+}
+
+#left {
+    background: #8d78c7;
+}
+
+#right {
+    background: #d979aa;
+}
+
+.hidden {
+    display: none !important;
+}
+
+#message {
+    position: absolute;
+    z-index: 6;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    text-align: center;
+    color: #663b59;
+    font-weight: bold;
+    font-size: 15px;
+    pointer-events: none;
+}
+</style>
+</head>
+
+<body>
+
+<div id="game">
+
+    <canvas id="canvas"></canvas>
+
+    <div id="startScreen" class="screen">
+        <h1>☁️ Nosso Pequeno Paraíso 💗</h1>
+        <p>
+            Ajude o nosso menino a atravessar as nuvens
+            e chegar até a garota que está esperando por ele no castelo. 🏰
+        </p>
+        <p>
+            Use as setinhas para andar e pule pelas nuvens!
+        </p>
+        <button onclick="startGame()">COMEÇAR 💕</button>
+    </div>
+
+    <div id="winScreen" class="screen hidden">
+        <h1>💗 Eles conseguiram! 💗</h1>
+        <p>
+            Depois de atravessar todas aquelas nuvens,
+            ele finalmente encontrou quem estava esperando por ele. 🥹
+        </p>
+        <p>
+            E talvez o verdadeiro destino nunca tenha sido o castelo...
+            mas um ao outro. 🌷
+        </p>
+        <button onclick="openLetter()">💌 Continuar</button>
+    </div>
+
+    <div id="loseScreen" class="screen hidden">
+        <h1>🦖 RAAAAWR!!!</h1>
+        <p>
+            Opa! Você caiu das nuvens...
+            e acordou o dinossauro! 😂🦖
+        </p>
+        <button onclick="restartGame()">Tentar novamente 💗</button>
+    </div>
+
+    <div id="message"></div>
+
+    <div id="controls" class="hidden">
+        <button class="control" id="left">←</button>
+        <button class="control" id="right">→</button>
+    </div>
+
+</div>
+
+<script>
+
+/* =====================================================
+   💌 COLOQUE AQUI O LINK DA SUA CARTA DO GOOGLE DOCS
+   ===================================================== */
+
+const CARTA_URL =
+"https://docs.google.com/document/d/1n9I46CDcpNzwglLc3rp5oa1JlNw1Ey8xT39_pPlCnZY/edit?usp=drivesdk";
+
+
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+
+let W, H;
+
+function resize() {
+    W = canvas.width = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+}
+
+resize();
+window.addEventListener("resize", resize);
+
+
+/* =========================
+       ESTADO DO JOGO
+   ========================= */
+
+let playing = false;
+let gameOver = false;
+let won = false;
+
+let cameraY = 0;
+let keys = {
+    left: false,
+    right: false
+};
+
+
+/* =========================
+       PERSONAGEM
+   ========================= */
+
+const player = {
+    x: 80,
+    y: 0,
+    width: 34,
+    height: 52,
+    vx: 0,
+    vy: 0,
+    speed: 4.2,
+    jump: -11,
+    grounded: false,
+    facing: 1
+};
+
+
+/* =========================
+       MUNDO
+   ========================= */
+
+const platforms = [
+    {x: 30,  y: 650, w: 150, h: 25},
+    {x: 220, y: 550, w: 145, h: 25},
+    {x: 70,  y: 440, w: 145, h: 25},
+    {x: 290, y: 335, w: 150, h: 25},
+    {x: 100, y: 225, w: 150, h: 25},
+    {x: 320, y: 115, w: 150, h: 25}
+];
+
+const castle = {
+    x: 335,
+    y: 15,
+    w: 120,
+    h: 100
+};
+
+const girl = {
+    x: 380,
+    y: 65
+};
+
+
+/* =========================
+       INICIAR
+   ========================= */
+
+function startGame() {
+
+    document.getElementById("startScreen")
+        .classList.add("hidden");
+
+    document.getElementById("controls")
+        .classList.remove("hidden");
+
+    resetPlayer();
+
+    playing = true;
+    gameOver = false;
+    won = false;
+
+    requestAnimationFrame(loop);
+}
+
+
+function resetPlayer() {
+    player.x = 80;
+    player.y = 590;
+    player.vx = 0;
+    player.vy = -11;
+    cameraY = 0;
+}
+
+
+/* =========================
+       CONTROLES
+   ========================= */
+
+window.addEventListener("keydown", e => {
+
+    if (e.key === "ArrowLeft") {
+        keys.left = true;
+    }
+
+    if (e.key === "ArrowRight") {
+        keys.right = true;
+    }
+});
+
+
+window.addEventListener("keyup", e => {
+
+    if (e.key === "ArrowLeft") {
+        keys.left = false;
+    }
+
+    if (e.key === "ArrowRight") {
+        keys.right = false;
+    }
+});
+
+
+function touchButton(button, direction) {
+
+    button.addEventListener("touchstart", e => {
+        e.preventDefault();
+        keys[direction] = true;
+    }, {passive:false});
+
+    button.addEventListener("touchend", e => {
+        e.preventDefault();
+        keys[direction] = false;
+    }, {passive:false});
+
+    button.addEventListener("touchcancel", () => {
+        keys[direction] = false;
+    });
+}
+
+
+touchButton(document.getElementById("left"), "left");
+touchButton(document.getElementById("right"), "right");
+
+
+/* Também funciona com mouse */
+
+document.getElementById("left").onmousedown = () => keys.left = true;
+document.getElementById("left").onmouseup = () => keys.left = false;
+
+document.getElementById("right").onmousedown = () => keys.right = true;
+document.getElementById("right").onmouseup = () => keys.right = false;
+
+
+/* =========================
+       ATUALIZAR JOGO
+   ========================= */
+
+function update() {
+
+    if (!playing || gameOver || won) return;
+
+
+    /* Movimento */
+
+    if (keys.left) {
+        player.vx = -player.speed;
+        player.facing = -1;
+    }
+    else if (keys.right) {
+        player.vx = player.speed;
+        player.facing = 1;
+    }
+    else {
+        player.vx *= 0.8;
+    }
+
+
+    player.x += player.vx;
+
+    player.x = Math.max(5, Math.min(W - player.width - 5, player.x));
+
+
+    /* Gravidade */
+
+    player.vy += 0.45;
+    player.y += player.vy;
+
+
+    /* Colisão com plataformas */
+
+    player.grounded = false;
+
+    for (let p of platforms) {
+
+        const falling = player.vy >= 0;
+
+        const bottom = player.y + player.height;
+
+        const previousBottom =
+            bottom - player.vy;
+
+        const horizontal =
+            player.x + player.width > p.x &&
+            player.x < p.x + p.w;
+
+        const vertical =
+            previousBottom <= p.y &&
+            bottom >= p.y;
+
+        if (falling && horizontal && vertical) {
+
+            player.y = p.y - player.height;
+            player.vy = player.jump;
+            player.grounded = true;
+        }
+    }
+
+
+    /* Câmera */
+
+    const targetCamera =
+        player.y - H * 0.55;
+
+    cameraY +=
+        (targetCamera - cameraY) * 0.08;
+
+    if (cameraY < 0) cameraY = 0;
+
+
+    /* Chegou ao castelo */
+
+    if (
+        player.y < castle.y + castle.h &&
+        player.x + player.width > castle.x &&
+        player.x < castle.x + castle.w
+    ) {
+
+        winGame();
+    }
+
+
+    /* Caiu */
+
+    if (player.y - cameraY > H + 100) {
+
+        loseGame();
+    }
+}
+
+
+/* =========================
+       DESENHO
+   ========================= */
+
+function draw() {
+
+    ctx.clearRect(0, 0, W, H);
+
+
+    /* Céu */
+
+    const gradient =
+        ctx.createLinearGradient(0, 0, 0, H);
+
+    gradient.addColorStop(0, "#aee5ff");
+    gradient.addColorStop(1, "#fff2fa");
+
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+
+
+    /* Nuvens decorativas */
+
+    drawCloud(80, 100);
+    drawCloud(420, 180);
+    drawCloud(180, 300);
+    drawCloud(470, 430);
+
+
+    ctx.save();
+
+    ctx.translate(0, -cameraY);
+
+
+    /* Plataformas */
+
+    for (let p of platforms) {
+        drawPlatform(p);
+    }
+
+
+    /* Castelo */
+
+    drawCastle();
+
+
+    /* Garota */
+
+    drawGirl();
+
+
+    /* Menino */
+
+    drawBoy(
+        player.x,
+        player.y,
+        player.facing
+    );
+
+
+    ctx.restore();
+}
+
+
+/* =========================
+       NUVEM
+   ========================= */
+
+function drawCloud(x, y) {
+
+    ctx.save();
+
+    ctx.fillStyle = "rgba(255,255,255,.75)";
+
+    ctx.beginPath();
+
+    ctx.arc(x, y, 22, 0, Math.PI * 2);
+    ctx.arc(x + 25, y - 10, 30, 0, Math.PI * 2);
+    ctx.arc(x + 55, y, 22, 0, Math.PI * 2);
+
+    ctx.fillRect(x - 20, y, 95, 25);
+
+    ctx.fill();
+
+    ctx.restore();
+}
+
+
+/* =========================
+       PLATAFORMA
+   ========================= */
+
+function drawPlatform(p) {
+
+    ctx.save();
+
+    ctx.fillStyle = "white";
+
+    ctx.beginPath();
+
+    ctx.arc(p.x + 25, p.y + 10, 18, 0, Math.PI * 2);
+    ctx.arc(p.x + 55, p.y + 5, 24, 0, Math.PI * 2);
+    ctx.arc(p.x + 90, p.y + 10, 20, 0, Math.PI * 2);
+
+    ctx.fillRect(
+        p.x,
+        p.y + 5,
+        p.w,
+        p.h - 5
+    );
+
+    ctx.fill();
+
+    ctx.restore();
+}
+
+
+/* =========================
+       CASTELO
+   ========================= */
+
+function drawCastle() {
+
+    const x = castle.x;
+    const y = castle.y;
+
+
+    /* Corpo */
+
+    ctx.fillStyle = "#c98bb5";
+    ctx.fillRect(x, y + 25, castle.w, 75);
+
+
+    /* Torre esquerda */
+
+    ctx.fillStyle = "#b878a4";
+    ctx.fillRect(x - 15, y + 5, 35, 95);
+
+
+    /* Torre direita */
+
+    ctx.fillRect(x + 100, y + 5, 35, 95);
+
+
+    /* Telhados */
+
+    ctx.fillStyle = "#754d82";
+
+    ctx.beginPath();
+    ctx.moveTo(x - 20, y + 7);
+    ctx.lineTo(x + 2, y - 25);
+    ctx.lineTo(x + 25, y + 7);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(x + 95, y + 7);
+    ctx.lineTo(x + 117, y - 25);
+    ctx.lineTo(x + 140, y + 7);
+    ctx.fill();
+
+
+    /* Porta */
+
+    ctx.fillStyle = "#71485e";
+
+    ctx.beginPath();
+    ctx.arc(
+        x + 60,
+        y + 70,
+        22,
+        Math.PI,
+        0
+    );
+
+    ctx.fillRect(
+        x + 38,
+        y + 70,
+        44,
+        30
+    );
+
+    ctx.fill();
+
+
+    /* Bandeirinha */
+
+    ctx.fillStyle = "#e77fb0";
+
+    ctx.beginPath();
+    ctx.moveTo(x + 60, y - 25);
+    ctx.lineTo(x + 60, y - 48);
+    ctx.lineTo(x + 82, y - 40);
+    ctx.lineTo(x + 60, y - 33);
+    ctx.fill();
+}
+
+
+/* =========================
+       MENINO
+   ========================= */
+
+function drawBoy(x, y, facing) {
+
+    ctx.save();
+
+    ctx.translate(
+        x + player.width / 2,
+        y + player.height
+    );
+
+    ctx.scale(facing, 1);
+
+
+    /* Corpo */
+
+    ctx.fillStyle = "#4d73a8";
+
+    ctx.fillRect(
+        -12,
+        -30,
+        24,
+        27
+    );
+
+
+    /* Pernas */
+
+    ctx.strokeStyle = "#333";
+    ctx.lineWidth = 5;
+
+    ctx.beginPath();
+    ctx.moveTo(-7, -3);
+    ctx.lineTo(-8, 12);
+    ctx.moveTo(7, -3);
+    ctx.lineTo(9, 12);
+    ctx.stroke();
+
+
+    /* Sapatos */
+
+    ctx.fillStyle = "#333";
+
+    ctx.fillRect(-12, 10, 10, 5);
+    ctx.fillRect(6, 10, 10, 5);
+
+
+    /* Braços */
+
+    ctx.strokeStyle = "#a86f50";
+    ctx.lineWidth = 5;
+
+    ctx.beginPath();
+    ctx.moveTo(-11, -25);
+    ctx.lineTo(-20, -12);
+
+    ctx.moveTo(11, -25);
+    ctx.lineTo(20, -12);
+
+    ctx.stroke();
+
+
+    /* Cabeça */
+
+    ctx.fillStyle = "#a96f50";
+
+    ctx.beginPath();
+    ctx.arc(0, -45, 15, 0, Math.PI * 2);
+    ctx.fill();
+
+
+    /* Cabelo preto */
+
+    ctx.fillStyle = "#17151a";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        0,
+        -51,
+        15,
+        Math.PI,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+
+    ctx.fillRect(
+        -15,
+        -51,
+        30,
+        7
+    );
+
+
+    /* Olhos castanho-claros */
+
+    ctx.fillStyle = "#9b6738";
+
+    ctx.beginPath();
+    ctx.arc(-6, -45, 2.5, 0, Math.PI * 2);
+    ctx.arc(6, -45, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+
+    ctx.restore();
+}
+
+
+/* =========================
+       GAROTA
+   ========================= */
+
+function drawGirl() {
+
+    const x = girl.x;
+    const y = girl.y;
+
+
+    /* Corpo */
+
+    ctx.fillStyle = "#d979aa";
+
+    ctx.beginPath();
+
+    ctx.moveTo(x - 16, y + 20);
+    ctx.lineTo(x + 16, y + 20);
+    ctx.lineTo(x + 22, y + 55);
+    ctx.lineTo(x - 22, y + 55);
+
+    ctx.closePath();
+    ctx.fill();
+
+
+    /* Pernas */
+
+    ctx.strokeStyle = "#a86f50";
+    ctx.lineWidth = 5;
+
+    ctx.beginPath();
+
+    ctx.moveTo(x - 7, y + 53);
+    ctx.lineTo(x - 8, y + 70);
+
+    ctx.moveTo(x + 7, y + 53);
+    ctx.lineTo(x + 8, y + 70);
+
+    ctx.stroke();
+
+
+    /* Cabeça */
+
+    ctx.fillStyle = "#a86f50";
+
+    ctx.beginPath();
+    ctx.arc(x, y + 5, 14, 0, Math.PI * 2);
+    ctx.fill();
+
+
+    /* Cabelo cacheado */
+
+    ctx.fillStyle = "#583d32";
+
+    const curls = [
+        [-15,-2],
+        [-12,-10],
+        [-5,-14],
+        [4,-14],
+        [12,-9],
+        [16,0],
+        [-15,7],
+        [15,8]
+    ];
+
+    curls.forEach(c => {
+
+        ctx.beginPath();
+
+        ctx.arc(
+            x + c[0],
+            y + 5 + c[1],
+            8,
+            0,
+            Math.PI * 2
+        );
+
+        ctx.fill();
+    });
+
+
+    /* Olhos */
+
+    ctx.fillStyle = "#33241e";
+
+    ctx.beginPath();
+
+    ctx.arc(
+        x - 5,
+        y + 5,
+        2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.arc(
+        x + 5,
+        y + 5,
+        2,
+        0,
+        Math.PI * 2
+    );
+
+    ctx.fill();
+}
+
+
+/* =========================
+       VITÓRIA
+   ========================= */
+
+function winGame() {
+
+    if (won) return;
+
+    won = true;
+    playing = false;
+
+    document.getElementById("controls")
+        .classList.add("hidden");
+
+    createHearts();
+
+    setTimeout(() => {
+
+        document.getElementById("winScreen")
+            .classList.remove("hidden");
+
+    }, 1800);
+}
+
+
+function createHearts() {
+
+    for (let i = 0; i < 12; i++) {
+
+        const heart = document.createElement("div");
+
+        heart.innerHTML = "💗";
+
+        heart.style.position = "absolute";
+        heart.style.zIndex = "20";
+        heart.style.left = (45 + Math.random() * 10) + "%";
+        heart.style.top = "50%";
+        heart.style.fontSize = (20 + Math.random() * 20) + "px";
+        heart.style.pointerEvents = "none";
+        heart.style.transition =
+            "transform 1.5s ease, opacity 1.5s ease";
+
+        document.getElementById("game")
+            .appendChild(heart);
+
+        setTimeout(() => {
+
+            heart.style.transform =
+                `translate(${(Math.random()-0.5)*150}px,-180px) scale(1.5)`;
+
+            heart.style.opacity = "0";
+
+        }, 50);
+
+        setTimeout(() => {
+            heart.remove();
+        }, 1700);
+    }
+}
+
+
+/* =========================
+       DERROTA
+   ========================= */
+
+function loseGame() {
+
+    if (gameOver) return;
+
+    gameOver = true;
+    playing = false;
+
+    document.getElementById("controls")
+        .classList.add("hidden");
+
+    document.getElementById("loseScreen")
+        .classList.remove("hidden");
+}
+
+
+function restartGame() {
+
+    document.getElementById("loseScreen")
+        .classList.add("hidden");
+
+    document.getElementById("controls")
+        .classList.remove("hidden");
+
+    resetPlayer();
+
+    playing = true;
+    gameOver = false;
+
+    requestAnimationFrame(loop);
+}
+
+
+/* =========================
+       ABRIR CARTA
+   ========================= */
+
+function openLetter() {
+
+    window.location.href = CARTA_URL;
+}
+
+
+/* =========================
+       LOOP
+   ========================= */
+
+function loop() {
+
+    if (!playing && !won && !gameOver) return;
+
+    update();
+    draw();
+
+    if (playing) {
+        requestAnimationFrame(loop);
+    }
+}
+
+
+/* Desenha a tela inicial */
+
+draw();
+
+</script>
+
+</body>
+</html>
