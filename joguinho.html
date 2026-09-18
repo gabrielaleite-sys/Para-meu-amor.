@@ -2,103 +2,338 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
 <title>Nosso Pequeno Paraíso 💗</title>
 
 <style>
-* {
-    box-sizing: border-box;
-    -webkit-tap-highlight-color: transparent;
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;font-family:Arial,sans-serif;background:#dff6ff}
+#game{position:relative;width:100%;height:100vh;max-width:600px;margin:auto;overflow:hidden}
+canvas{position:absolute;inset:0;width:100%;height:100%;background:#dff6ff}
+.screen{position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;padding:25px}
+.screen h1{font-size:32px;color:#b85c8a;margin:10px}
+.screen p{font-size:18px;color:#75445e;max-width:380px;line-height:1.5}
+button{border:0;border-radius:25px;padding:14px 25px;margin:8px;font-size:17px;font-weight:bold;color:white;background:#d979aa;box-shadow:0 5px 12px #0003;cursor:pointer}
+button:active{transform:scale(.95)}
+#controls{position:absolute;z-index:5;bottom:20px;left:0;right:0;display:none;justify-content:space-between;padding:0 20px;pointer-events:none}
+.control{pointer-events:auto;width:75px;height:65px;border-radius:20px;font-size:30px;padding:0}
+#win,#lose{display:none;background:#dff6ffdd}
+</style>
+</head>
+
+<body>
+<div id="game">
+
+<canvas id="canvas"></canvas>
+
+<div id="start" class="screen">
+<h1>💗 Nosso Pequeno Paraíso 💗</h1>
+<p>Ajude o menino a atravessar as nuvens e chegar até a garota no castelo! ☁️🏰</p>
+<button onclick="startGame()">COMEÇAR 💕</button>
+</div>
+
+<div id="lose" class="screen">
+<h1>🦖 O DINOSSAURO TE PEGOU! 🦖</h1>
+<p>Ops! Você caiu das nuvens! 😭</p>
+<button onclick="startGame()">TENTAR DE NOVO 💗</button>
+</div>
+
+<div id="win" class="screen">
+<h1>💗 VOCÊ CONSEGUIU! 💗</h1>
+<p>Você chegou até mim... 🥹💕<br>Agora tem uma cartinha esperando por você.</p>
+<button onclick="openLetter()">💌 LER MINHA CARTA</button>
+</div>
+
+<div id="controls">
+<button class="control" id="left">⬅️</button>
+<button class="control" id="right">➡️</button>
+</div>
+
+</div>
+
+<script>
+const CARTA_URL="https://docs.google.com/document/d/1iVjC6NQuH0VSzxE7U2Gyib1XO1saMYYb33E2O-bFi6w/edit?usp=drivesdk";
+
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+
+let W,H,playing=false,won=false;
+let left=false,right=false;
+let camera=0;
+
+const player={
+ x:55,y:500,w:30,h:45,
+ vx:0,vy:0,speed:4,jump:-11,
+ onGround:false
+};
+
+const platforms=[
+ {x:20,y:650,w:160,h:22},
+ {x:220,y:550,w:145,h:22},
+ {x:60,y:440,w:145,h:22},
+ {x:290,y:335,w:150,h:22},
+ {x:100,y:225,w:150,h:22},
+ {x:320,y:115,w:150,h:22}
+];
+
+const castle={x:330,y:15,w:130,h:100};
+const girl={x:380,y:65};
+
+function resize(){
+ W=canvas.width=window.innerWidth;
+ H=canvas.height=window.innerHeight;
+}
+resize();
+window.addEventListener("resize",resize);
+
+function resetPlayer(){
+ player.x=55;
+ player.y=570;
+ player.vx=0;
+ player.vy=0;
+ camera=0;
+ won=false;
 }
 
-html, body {
-    margin: 0;
-    padding: 0;
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-    font-family: Arial, sans-serif;
-    background: #dff6ff;
+function startGame(){
+ document.getElementById("start").style.display="none";
+ document.getElementById("lose").style.display="none";
+ document.getElementById("win").style.display="none";
+ document.getElementById("controls").style.display="flex";
+ resetPlayer();
+ playing=true;
+ requestAnimationFrame(loop);
 }
 
-body {
-    display: flex;
-    justify-content: center;
-    align-items: center;
+function loseGame(){
+ if(!playing)return;
+ playing=false;
+ document.getElementById("controls").style.display="none";
+ document.getElementById("lose").style.display="flex";
 }
 
-#game {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    max-width: 600px;
-    overflow: hidden;
-    background: linear-gradient(#b9eaff, #fff5fb);
+function winGame(){
+ if(won)return;
+ won=true;
+ playing=false;
+ document.getElementById("controls").style.display="none";
+ setTimeout(()=>{
+   document.getElementById("win").style.display="flex";
+ },700);
 }
 
-canvas {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
+function openLetter(){
+ window.location.href=CARTA_URL;
 }
 
-.screen {
-    position: absolute;
-    inset: 0;
-    z-index: 10;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    padding: 25px;
-    background: linear-gradient(#d8f5ff, #fff0f8);
+function drawCloud(x,y,w=130){
+ ctx.fillStyle="white";
+ ctx.beginPath();
+ ctx.arc(x+30,y+8,22,0,Math.PI*2);
+ ctx.arc(x+65,y,30,0,Math.PI*2);
+ ctx.arc(x+100,y+10,22,0,Math.PI*2);
+ ctx.fillRect(x+15,y+8,w-30,22);
+ ctx.fill();
 }
 
-.screen h1 {
-    color: #743d64;
-    font-size: 30px;
-    margin: 0 0 12px;
+function drawBoy(){
+ const x=player.x,y=player.y-camera;
+
+ // cabelo
+ ctx.fillStyle="#211817";
+ ctx.beginPath();
+ ctx.arc(x+15,y+8,15,0,Math.PI*2);
+ ctx.fill();
+
+ // rosto
+ ctx.fillStyle="#8b542f";
+ ctx.beginPath();
+ ctx.arc(x+15,y+13,11,0,Math.PI*2);
+ ctx.fill();
+
+ // olhos
+ ctx.fillStyle="#5b321d";
+ ctx.beginPath();
+ ctx.arc(x+11,y+12,2,0,Math.PI*2);
+ ctx.arc(x+19,y+12,2,0,Math.PI*2);
+ ctx.fill();
+
+ // corpo
+ ctx.fillStyle="#6b8fd3";
+ ctx.fillRect(x+4,y+24,22,20);
+
+ // pernas
+ ctx.fillStyle="#333";
+ ctx.fillRect(x+5,y+42,8,5);
+ ctx.fillRect(x+18,y+42,8,5);
 }
 
-.screen p {
-    color: #684d61;
-    font-size: 17px;
-    line-height: 1.5;
-    max-width: 390px;
+function drawGirl(){
+ const x=girl.x,y=girl.y-camera;
+
+ // cabelo cacheado
+ ctx.fillStyle="#5a321f";
+ for(let i=0;i<5;i++){
+   ctx.beginPath();
+   ctx.arc(x-8+i*8,y+10+(i%2)*5,10,0,Math.PI*2);
+   ctx.fill();
+ }
+
+ // rosto
+ ctx.fillStyle="#87502f";
+ ctx.beginPath();
+ ctx.arc(x+12,y+14,11,0,Math.PI*2);
+ ctx.fill();
+
+ // cabelo lateral
+ ctx.fillStyle="#5a321f";
+ ctx.fillRect(x-2,y+8,5,28);
+ ctx.fillRect(x+24,y+8,5,28);
+
+ // olhos
+ ctx.fillStyle="#432719";
+ ctx.beginPath();
+ ctx.arc(x+8,y+13,2,0,Math.PI*2);
+ ctx.arc(x+16,y+13,2,0,Math.PI*2);
+ ctx.fill();
+
+ // vestido
+ ctx.fillStyle="#d979aa";
+ ctx.beginPath();
+ ctx.moveTo(x+5,y+25);
+ ctx.lineTo(x-3,y+50);
+ ctx.lineTo(x+27,y+50);
+ ctx.lineTo(x+19,y+25);
+ ctx.fill();
 }
 
-button {
-    border: none;
-    border-radius: 25px;
-    padding: 13px 25px;
-    margin: 8px;
-    font-size: 17px;
-    font-weight: bold;
-    color: white;
-    background: #d979aa;
-    box-shadow: 0 5px 12px rgba(80,40,70,.18);
-    cursor: pointer;
+function drawCastle(){
+ const x=castle.x,y=castle.y-camera;
+
+ ctx.fillStyle="#d9a0c2";
+ ctx.fillRect(x,y+25,130,75);
+
+ ctx.fillStyle="#b86c9b";
+ ctx.fillRect(x+10,y,28,55);
+ ctx.fillRect(x+92,y,28,55);
+
+ ctx.fillStyle="#f7d6e8";
+ ctx.beginPath();
+ ctx.arc(x+65,y+70,18,Math.PI,0);
+ ctx.fillRect(x+47,y+70,36,30);
+ ctx.fill();
+
+ ctx.fillStyle="#8c4c75";
+ ctx.fillRect(x+58,y+65,14,35);
+
+ ctx.fillStyle="#fff";
+ ctx.font="24px Arial";
+ ctx.fillText("💗",x+51,y+20);
 }
 
-button:active {
-    transform: scale(.95);
+function drawBackground(){
+ ctx.fillStyle="#dff6ff";
+ ctx.fillRect(0,0,W,H);
+
+ for(let i=0;i<6;i++){
+   drawCloud((i*150+30)%W,100+i*120-camera*.15,100);
+ }
 }
 
-#controls {
-    position: absolute;
-    z-index: 5;
-    bottom: 20px;
-    left: 0;
-    right: 0;
-    display: flex;
-    justify-content: space-between;
-    padding: 0 20px;
-    pointer-events: none;
+function update(){
+ if(left)player.vx=-player.speed;
+ else if(right)player.vx=player.speed;
+ else player.vx*=.8;
+
+ player.vy+=.5;
+ player.x+=player.vx;
+ player.y+=player.vy;
+ player.onGround=false;
+
+ for(const p of platforms){
+   if(
+    player.x+player.w>p.x &&
+    player.x<p.x+p.w &&
+    player.y+player.h>=p.y &&
+    player.y+player.h<=p.y+player.vy+5 &&
+    player.vy>=0
+   ){
+     player.y=p.y-player.h;
+     player.vy=player.jump;
+     player.onGround=true;
+   }
+ }
+
+ if(player.x<0)player.x=0;
+ if(player.x+player.w>W)player.x=W-player.w;
+
+ camera=player.y- H*.55;
+ if(camera<0)camera=0;
+
+ if(player.y-camera<100)camera=player.y-100;
+
+ // chegou ao castelo
+ if(
+   player.x+player.w>castle.x &&
+   player.x<castle.x+castle.w &&
+   player.y<castle.y+120
+ ){
+   winGame();
+ }
+
+ if(player.y-camera>H+80)loseGame();
 }
 
-.control {
-    pointer-events: auto;
-    width: 75px;
-    height: 65px
+function draw(){
+ drawBackground();
+
+ ctx.save();
+ ctx.translate(0,-camera);
+
+ for(const p of platforms)drawCloud(p.x,p.y-8,p.w);
+
+ drawCastle();
+ drawGirl();
+
+ ctx.restore();
+
+ drawBoy();
+}
+
+function loop(){
+ if(!playing)return;
+ update();
+ draw();
+ requestAnimationFrame(loop);
+}
+
+function pressLeft(v){left=v}
+function pressRight(v){right=v}
+
+document.getElementById("left").addEventListener("touchstart",e=>{
+ e.preventDefault();pressLeft(true);
+});
+document.getElementById("left").addEventListener("touchend",e=>{
+ e.preventDefault();pressLeft(false);
+});
+
+document.getElementById("right").addEventListener("touchstart",e=>{
+ e.preventDefault();pressRight(true);
+});
+document.getElementById("right").addEventListener("touchend",e=>{
+ e.preventDefault();pressRight(false);
+});
+
+document.addEventListener("keydown",e=>{
+ if(e.key==="ArrowLeft")left=true;
+ if(e.key==="ArrowRight")right=true;
+});
+
+document.addEventListener("keyup",e=>{
+ if(e.key==="ArrowLeft")left=false;
+ if(e.key==="ArrowRight")right=false;
+});
+</script>
+
+</body>
+</html>
